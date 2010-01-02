@@ -7,6 +7,7 @@ import java.net.URL;
 
 import com.xuggle.mediatool.IMediaWriter;
 import com.xuggle.mediatool.ToolFactory;
+import com.xuggle.xuggler.IAudioResampler;
 import com.xuggle.xuggler.IAudioSamples;
 import com.xuggle.xuggler.IContainer;
 import com.xuggle.xuggler.IPacket;
@@ -23,31 +24,26 @@ public class Cutter {
 	 * @param to
 	 */
 	public static void cut(String inFile, long from, long to,
-			IContainer writeContainer, long offset, int width, int height) {		
+			IMediaWriter writer, long offset, int width, int height, int audioChannels, int audioRate) {		
 		inFile = getFileUrl(inFile);
 		IContainer readContainer = IContainer.make();
 		readContainer.open(inFile, IContainer.Type.READ, null);
 		
-
 		IStreamCoder vCoder = readContainer.getStream(0).getStreamCoder();
 		IStreamCoder aCoder = readContainer.getStream(1).getStreamCoder();
 		
-		IVideoResampler resampler = IVideoResampler.make(width, height, vCoder
+		//Preparing resamplers
+		IVideoResampler videoResampler = IVideoResampler.make(width, height, vCoder
 				.getPixelType(), vCoder.getWidth(), vCoder.getHeight(), vCoder
 				.getPixelType());
-
-
+		IAudioResampler audioResampler=IAudioResampler.make(audioChannels, aCoder.getChannels(), audioRate, aCoder.getSampleRate());
+		
 		long firstTimeStamp = -1;
 		IPacket packet = IPacket.make();
 		vCoder.open();
+		aCoder.open();		
 		
-		IStreamCoder newVideoCoder=writeContainer.getStream(0).getStreamCoder();
-		newVideoCoder.open();
-		
-		//Do we have to resize?
-		boolean resize=true;
-		if(width==vCoder.getWidth())resize=false;
-
+		//Write to the file!
 		while (readContainer.readNextPacket(packet) == 0) {
 			if (packet.getTimeStamp() > from && packet.getTimeStamp() < to) {
 				//Fixing timestamp
@@ -62,31 +58,50 @@ public class Cutter {
 					packet.setDts(packet.getTimeStamp());
 					packet.setPts(packet.getTimeStamp());
 				}
-				
-				if (packet.getStreamIndex() == 0) {
+				if (packet.getStreamIndex() == 0) {//Video packet
 					IVideoPicture picture = IVideoPicture.make(vCoder.getPixelType(), vCoder.getWidth(), vCoder.getHeight());
 					int packetOffset = 0;
 					while (packetOffset < packet.getSize()) {
 						int bytesDecoded = vCoder.decodeVideo(picture, packet, packetOffset);
+						if (bytesDecoded < 0){
+							 throw new RuntimeException("Error decoding video!");
+						 }
 						packetOffset += bytesDecoded;			
 						if (picture.isComplete()){
-							
+							IVideoPicture newPic = IVideoPicture.make(videoResampler.getOutputPixelFormat(), width, height);
+							videoResampler.resample(newPic, picture);
+							writer.encodeVideo(0, newPic);
 						}
 					}
-				}else if (packet.getStreamIndex() == 1) {
-					writeContainer.writePacket(packet);
+				}else if (packet.getStreamIndex() == 1) {//Audio packet			
+					 IAudioSamples samples = IAudioSamples.make(1024, aCoder.getChannels()); 
+					 int packetOffset = 0;
+					 while(packetOffset < packet.getSize()){
+						 int bytesDecoded = aCoder.decodeAudio(samples, packet, packetOffset);
+						 if (bytesDecoded < 0){
+							 throw new RuntimeException("Error decoding audio!");
+						 }
+						 packetOffset += bytesDecoded; 
+						 if (samples.isComplete()){
+							 IAudioSamples newAudio=IAudioSamples.make(1024, audioChannels);
+							 audioResampler.resample(newAudio, samples, samples.getNumSamples());
+							 writer.encodeAudio(1, newAudio); 
+						 }
+					 }
 				}
-				
-				// Fixing timeStamp
-
-				System.out.println(packet.getTimeStamp());
-				writeContainer.writePacket(packet);
-			} else if (packet.getTimeStamp() > to) {
+			} else if (packet.getTimeStamp() > to) {//We're done!
 				break;
 			}
 		}
+		vCoder.close();
+		aCoder.close();
 	}
 
+	/**
+	 * Finding the direct link to the flv file for a youtube video ID...
+	 * @param videoId
+	 * @return
+	 */
 	public static String getFileUrl(String videoId) {
 		// We have to get the url for the flv file at the given youtube video id
 		String requestUrl = "http://www.youtube.com/get_video_info?&video_id="
