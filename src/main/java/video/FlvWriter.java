@@ -60,8 +60,7 @@ public class FlvWriter {
 	private void write(String video, long from, long to, IMediaWriter writeContainer) throws Exception {
 		String id = video.substring(video.indexOf("?v=") + 3, video.indexOf("?v=") + 14);//Ugly, finding video ID
 		System.out.println("Downloading ID " + video + " from " + from + " to " + to + " with offset " + offset);
-		Cutter.cut(id, from, to, writeContainer, offset, maxWidth, maxHeight, audioChannels, audioSampleRate); 
-		offset+=(to-from);
+		offset+=Cutter.cut(id, from, to, writeContainer, offset, maxWidth, maxHeight, audioChannels, audioSampleRate); 
 	}
 
 	public static void main(String[] args) throws Exception {
