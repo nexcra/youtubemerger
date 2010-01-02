@@ -6,7 +6,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 import com.xuggle.mediatool.IMediaWriter;
-import com.xuggle.mediatool.ToolFactory;
 import com.xuggle.xuggler.IAudioResampler;
 import com.xuggle.xuggler.IAudioSamples;
 import com.xuggle.xuggler.IContainer;
@@ -23,7 +22,7 @@ public class Cutter {
 	 * @param from
 	 * @param to
 	 */
-	public static void cut(String inFile, long from, long to,
+	public static long cut(String inFile, long from, long to,
 			IMediaWriter writer, long offset, int width, int height, int audioChannels, int audioRate) {		
 		inFile = getFileUrl(inFile);
 		IContainer readContainer = IContainer.make();
@@ -43,9 +42,19 @@ public class Cutter {
 		vCoder.open();
 		aCoder.open();		
 		
+		boolean writtenKeyFrame=false;
 		//Write to the file!
+		long lastPacketStamp=0;
 		while (readContainer.readNextPacket(packet) == 0) {
 			if (packet.getTimeStamp() > from && packet.getTimeStamp() < to) {
+				if(!writtenKeyFrame){
+					if(packet.isKeyPacket() && packet.getStreamIndex()==0){
+						writtenKeyFrame=true;
+					}else{
+						continue;
+					}
+				}
+				
 				//Fixing timestamp
 				if (firstTimeStamp == -1) {
 					firstTimeStamp = packet.getTimeStamp();
@@ -58,6 +67,7 @@ public class Cutter {
 					packet.setDts(packet.getTimeStamp());
 					packet.setPts(packet.getTimeStamp());
 				}
+				System.out.println(packet.getTimeStamp());//Nice while developing//debugging
 				if (packet.getStreamIndex() == 0) {//Video packet
 					IVideoPicture picture = IVideoPicture.make(vCoder.getPixelType(), vCoder.getWidth(), vCoder.getHeight());
 					int packetOffset = 0;
@@ -90,11 +100,15 @@ public class Cutter {
 					 }
 				}
 			} else if (packet.getTimeStamp() > to) {//We're done!
+				long oldTime = packet.getTimeStamp();
+				packet.setTimeStamp(oldTime - firstTimeStamp + offset);
+				lastPacketStamp=packet.getTimeStamp();
 				break;
 			}
 		}
 		vCoder.close();
 		aCoder.close();
+		return lastPacketStamp-firstTimeStamp;
 	}
 
 	/**
