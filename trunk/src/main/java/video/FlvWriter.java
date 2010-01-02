@@ -6,7 +6,6 @@ import java.util.List;
 import com.xuggle.mediatool.IMediaWriter;
 import com.xuggle.mediatool.ToolFactory;
 import com.xuggle.xuggler.IContainer;
-import com.xuggle.xuggler.IStream;
 import com.xuggle.xuggler.IStreamCoder;
 
 
@@ -17,8 +16,8 @@ public class FlvWriter {
 	public FlvWriter() throws Exception {
 		//The clips we want to merge
 		List<Object[]> videos=new ArrayList<Object[]>();
-		videos.add(new Object[]{"http://www.youtube.com/watch?v=WJEAeRdgqKA", 60000, 70000});
-		videos.add(new Object[]{"http://www.youtube.com/watch?v=1QP-SIW6iKY", 5000, 35000});
+		videos.add(new Object[]{"http://www.youtube.com/watch?v=ZNGe7iK1O-4", 0, 46000});
+		videos.add(new Object[]{"http://www.youtube.com/watch?v=WJEAeRdgqKA", 170000, 230000});
 		
 		//Finding max height, width, have to rescale the other videos to this
 		IStreamCoder audioCoder=null, videoCoder=null;
@@ -47,7 +46,7 @@ public class FlvWriter {
 		}
 		
 		//Preparing the writer
-		IMediaWriter writer = ToolFactory.makeWriter("writer.flv");
+		IMediaWriter writer = ToolFactory.makeWriter("target/writer.flv");
 		writer.addVideoStream(0, 0, maxWidth, maxHeight);
 		writer.addAudioStream(1, 0, audioCoder.getChannels(), audioCoder.getSampleRate());
 			
