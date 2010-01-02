@@ -41,7 +41,7 @@ public class FlvWriter {
 		
 		//Preparing stuff!
 		IContainer writeContainer = IContainer.make();
-		writeContainer.open("temp.flv", IContainer.Type.WRITE, null);
+		writeContainer.open("./target/temp.flv", IContainer.Type.WRITE, null);
 		
 
 		IStream outVideoStream = writeContainer.addNewStream(0);
